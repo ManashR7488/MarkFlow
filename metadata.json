@@ -1,0 +1,6 @@
+{
+  "name": "Markdown Editor",
+  "description": "A minimalist, distraction-free markdown editor with real-time preview and PDF export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
