@@ -160,7 +160,7 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+      <main className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* Header */}
         {!focusMode && (
         <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-between px-4 shrink-0 no-print z-10">
@@ -360,7 +360,7 @@ export default function App() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
