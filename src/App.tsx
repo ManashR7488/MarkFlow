@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
+import { SettingsModal } from './components/SettingsModal';
+import { ProfileModal } from './components/ProfileModal';
 import { useNotes } from './hooks/useNotes';
-import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2 } from 'lucide-react';
+import { UserProfile } from './types';
+import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
 export default function App() {
@@ -15,6 +18,25 @@ export default function App() {
   const [fontSize, setFontSize] = useState<number>(16);
   const [lineHeight, setLineHeight] = useState<number>(1.6);
   const [spellCheckEnabled, setSpellCheckEnabled] = useState<boolean>(false);
+  const [syncScrollEnabled, setSyncScrollEnabled] = useState<boolean>(false);
+  const [focusMode, setFocusMode] = useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('markdown-user-profile-v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse user profile');
+      }
+    }
+    return { username: 'guest', fullName: 'Guest User', email: '' };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('markdown-user-profile-v1', JSON.stringify(userProfile));
+  }, [userProfile]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -22,6 +44,54 @@ export default function App() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (!syncScrollEnabled) return;
+
+    const editor = document.getElementById('editor-textarea');
+    const preview = document.getElementById('preview-scroll-container');
+
+    if (!editor || !preview) return;
+
+    let isSyncingLeft = false;
+    let isSyncingRight = false;
+
+    const handleEditorScroll = () => {
+      if (!syncScrollEnabled) return;
+      if (isSyncingLeft) {
+        isSyncingLeft = false;
+        return;
+      }
+      isSyncingRight = true;
+      
+      const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+      if (!isNaN(percentage)) {
+        preview.scrollTop = percentage * (preview.scrollHeight - preview.clientHeight);
+      }
+    };
+
+    const handlePreviewScroll = () => {
+      if (!syncScrollEnabled) return;
+      if (isSyncingRight) {
+        isSyncingRight = false;
+        return;
+      }
+      isSyncingLeft = true;
+
+      const percentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+      if (!isNaN(percentage)) {
+        editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight);
+      }
+    };
+
+    editor.addEventListener('scroll', handleEditorScroll);
+    preview.addEventListener('scroll', handlePreviewScroll);
+
+    return () => {
+      editor.removeEventListener('scroll', handleEditorScroll);
+      preview.removeEventListener('scroll', handlePreviewScroll);
+    };
+  }, [syncScrollEnabled, activeNoteId, editorOpen, showPreviewMobile]);
 
   const activeNote = notes.find(n => n.id === activeNoteId);
 
@@ -44,6 +114,15 @@ export default function App() {
     }
   };
 
+  const handleFormat = () => {
+    if (!activeNote) return;
+    const formatted = activeNote.content
+      .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2 newlines
+      .replace(/[ \t]+\n/g, '\n') // Remove trailing whitespace from lines
+      .trim(); // Remove leading/trailing whitespace from document
+    updateNote(activeNote.id, { content: formatted });
+  };
+
   const handleExportPDF = () => {
     window.print();
   };
@@ -51,7 +130,7 @@ export default function App() {
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-zinc-100 overflow-hidden font-sans selection:bg-zinc-800 selection:text-zinc-100">
       {/* Sidebar Overlay for Mobile */}
-      {sidebarOpen && (
+      {sidebarOpen && !focusMode && (
         <div 
           className="fixed inset-0 bg-black/50 z-10 md:hidden no-print" 
           onClick={() => setSidebarOpen(false)}
@@ -59,7 +138,7 @@ export default function App() {
       )}
 
       {/* Sidebar */}
-      {sidebarOpen && (
+      {sidebarOpen && !focusMode && (
         <Sidebar
           notes={notes}
           activeNoteId={activeNoteId}
@@ -74,12 +153,16 @@ export default function App() {
           onDeleteNote={deleteNote}
           onUpdateNote={updateNote}
           onClose={() => setSidebarOpen(false)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
+          userProfile={userProfile}
         />
       )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* Header */}
+        {!focusMode && (
         <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-between px-4 shrink-0 no-print z-10">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button 
@@ -125,14 +208,14 @@ export default function App() {
             </button>
           </div>
         </header>
+        )}
 
         {/* Editor / Preview Split */}
         {activeNote ? (
-          <Group direction="horizontal" className="flex-1 overflow-hidden">
+          <Group orientation="horizontal" className="flex-1 overflow-hidden">
             {(!isMobile ? editorOpen : !showPreviewMobile) && (
               <Panel
                 id="editor"
-                order={1}
                 defaultSize={50}
                 minSize={20}
                 className="border-r border-zinc-800/80 no-print flex"
@@ -156,7 +239,6 @@ export default function App() {
             {(!isMobile ? true : showPreviewMobile) && (
               <Panel
                 id="preview"
-                order={2}
                 defaultSize={50}
                 minSize={20}
                 className="overflow-hidden bg-zinc-950/50 print-area flex"
@@ -190,6 +272,13 @@ export default function App() {
               >
                 <Redo2 size={13} />
               </button>
+              <button
+                onClick={handleFormat}
+                className="w-5 h-5 flex items-center justify-center hover:bg-zinc-800 hover:text-zinc-200 rounded transition-colors ml-1"
+                title="Format / Trim Whitespace"
+              >
+                <Wand2 size={13} />
+              </button>
             </div>
             
             {activeNote && (
@@ -207,18 +296,33 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <button
+              onClick={() => setFocusMode(!focusMode)}
+              className={`flex items-center gap-1.5 transition-colors ${focusMode ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Toggle Focus Mode"
+            >
+              {focusMode ? <Minimize size={12} /> : <Maximize size={12} />}
+            </button>
+
+            <button
+              onClick={() => setSyncScrollEnabled(!syncScrollEnabled)}
+              className={`flex items-center gap-1.5 transition-colors ${syncScrollEnabled ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Toggle Sync Scroll"
+            >
+              <ArrowDownUp size={12} />
+            </button>
+
+            <button
               onClick={() => setSpellCheckEnabled(!spellCheckEnabled)}
               className={`flex items-center gap-1.5 transition-colors ${spellCheckEnabled ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
               title="Toggle Spell Check"
             >
               <SpellCheck size={12} />
-              <span>Spell Check</span>
             </button>
 
             <div className="w-px h-3 bg-zinc-800"></div>
 
-            <div className="flex items-center gap-1">
-              <Type size={12} className="mr-0.5" title="Font Size" />
+            <div className="flex items-center gap-1" title="Font Size">
+              <Type size={12} className="mr-0.5" />
               <button 
                 onClick={() => setFontSize(Math.max(12, fontSize - 1))}
                 className="w-4 h-4 flex items-center justify-center hover:bg-zinc-800 hover:text-zinc-200 rounded transition-colors"
@@ -236,8 +340,8 @@ export default function App() {
               </button>
             </div>
             
-            <div className="flex items-center gap-1">
-              <AlignLeft size={12} className="mr-0.5" title="Line Height" />
+            <div className="flex items-center gap-1" title="Line Height">
+              <AlignLeft size={12} className="mr-0.5" />
               <button 
                 onClick={() => setLineHeight(Math.max(1.2, Number((lineHeight - 0.1).toFixed(1))))}
                 className="w-4 h-4 flex items-center justify-center hover:bg-zinc-800 hover:text-zinc-200 rounded transition-colors"
@@ -257,6 +361,24 @@ export default function App() {
           </div>
         </div>
       </div>
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
+        lineHeight={lineHeight}
+        setLineHeight={setLineHeight}
+        spellCheckEnabled={spellCheckEnabled}
+        setSpellCheckEnabled={setSpellCheckEnabled}
+        syncScrollEnabled={syncScrollEnabled}
+        setSyncScrollEnabled={setSyncScrollEnabled}
+      />
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        userProfile={userProfile}
+        setUserProfile={setUserProfile}
+      />
     </div>
   );
 }

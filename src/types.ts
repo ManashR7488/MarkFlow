@@ -7,3 +7,9 @@ export interface Note {
   pinned?: boolean;
   archived?: boolean;
 }
+
+export interface UserProfile {
+  username: string;
+  fullName: string;
+  email: string;
+}
