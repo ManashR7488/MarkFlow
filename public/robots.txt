@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://manashr7488.github.io/MarkFlow/sitemap.xml
