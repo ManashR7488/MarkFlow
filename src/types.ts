@@ -12,6 +12,7 @@ export interface UserProfile {
   username: string;
   fullName: string;
   email: string;
+  avatar?: string;
 }
 
 export type AIProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
@@ -35,4 +36,18 @@ export interface AIConfig {
     promptToMarkdown: AIFeatureModelConfig | null;
     templateGeneration: AIFeatureModelConfig | null;
   };
+}
+
+export interface GoogleUser {
+  name: string;
+  email: string;
+  picture: string;
+  sub: string; // Google's unique user ID
+}
+
+export interface GoogleAuthState {
+  isConnected: boolean;
+  user: GoogleUser | null;
+  accessToken: string | null;
+  expiresAt: number | null; // unix timestamp in ms
 }

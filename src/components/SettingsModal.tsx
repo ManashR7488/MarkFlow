@@ -1,6 +1,7 @@
-import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save } from 'lucide-react';
+import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save, LogOut, UserCheck } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
 import { useState, useEffect } from 'react';
-import { AIConfig, AIProvider, AIProviderConfig } from '../types';
+import { AIConfig, AIProvider, AIProviderConfig, GoogleAuthState } from '../types';
 import { LLMService } from '../ai/llm';
 
 interface SettingsModalProps {
@@ -16,6 +17,9 @@ interface SettingsModalProps {
   setSyncScrollEnabled: (enabled: boolean) => void;
   aiConfig: AIConfig;
   setAiConfig: (config: AIConfig) => void;
+  googleAuth: GoogleAuthState;
+  onGoogleLogin: () => void;
+  onGoogleLogout: () => void;
 }
 
 export function SettingsModal({
@@ -30,7 +34,10 @@ export function SettingsModal({
   syncScrollEnabled,
   setSyncScrollEnabled,
   aiConfig,
-  setAiConfig
+  setAiConfig,
+  googleAuth,
+  onGoogleLogin,
+  onGoogleLogout,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
@@ -46,7 +53,7 @@ export function SettingsModal({
 
   const fetchModels = async (provider: AIProvider) => {
     try {
-      const llm = new LLMService(aiConfig);
+      const llm = new LLMService(aiConfig, provider === 'google' ? googleAuth.accessToken : null);
       const models = await llm.fetchModels(provider);
       setAvailableModels(prev => ({ ...prev, [provider]: models }));
     } catch (e) {
@@ -55,6 +62,20 @@ export function SettingsModal({
   };
 
   const handleVerifyAndSave = async (provider: AIProvider) => {
+    // Google with OAuth connected doesn't need API key verification
+    if (provider === 'google' && googleAuth.isConnected) {
+      try {
+        setVerificationStatus(prev => ({ ...prev, [provider]: 'validating' }));
+        const llm = new LLMService(aiConfig, googleAuth.accessToken);
+        const models = await llm.fetchModels('google');
+        setAvailableModels(prev => ({ ...prev, google: models }));
+        setVerificationStatus(prev => ({ ...prev, [provider]: 'valid' }));
+      } catch {
+        setVerificationStatus(prev => ({ ...prev, [provider]: 'invalid' }));
+      }
+      return;
+    }
+
     const configToTest = tempProviders[provider];
     if (!configToTest || (!configToTest.apiKey && provider !== 'ollama')) {
       setVerificationStatus(prev => ({ ...prev, [provider]: 'invalid' }));
@@ -233,26 +254,33 @@ export function SettingsModal({
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {['openai', 'anthropic', 'google', 'ollama'].map((provider) => {
-                      const isConfigured = provider === 'ollama' 
-                        ? !!aiConfig.providers[provider as AIProvider]?.baseUrl 
-                        : !!aiConfig.providers[provider as AIProvider]?.apiKey;
+                      const isGoogleOAuth = provider === 'google';
+                      const isConnectedViaOAuth = isGoogleOAuth && googleAuth.isConnected;
+
+                      const isConfigured = isConnectedViaOAuth
+                        ? true
+                        : provider === 'ollama'
+                          ? !!aiConfig.providers[provider as AIProvider]?.baseUrl
+                          : !!aiConfig.providers[provider as AIProvider]?.apiKey;
                         
                       const status = verificationStatus[provider] || 'idle';
 
                       return (
-                        <div key={provider} className={`bg-zinc-900/40 border ${status === 'valid' ? 'border-emerald-500/30' : status === 'invalid' ? 'border-rose-500/30' : 'border-zinc-800/80'} rounded-xl p-5 space-y-4 hover:border-zinc-700/80 transition-colors relative overflow-hidden group`}>
-                          {status === 'valid' && (
+                        <div key={provider} className={`bg-zinc-900/40 border ${isConnectedViaOAuth ? 'border-emerald-500/30' : status === 'valid' ? 'border-emerald-500/30' : status === 'invalid' ? 'border-rose-500/30' : 'border-zinc-800/80'} rounded-xl p-5 space-y-4 hover:border-zinc-700/80 transition-colors relative overflow-hidden group`}>
+                          {(isConnectedViaOAuth || status === 'valid') && (
                             <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 blur-2xl rounded-bl-full pointer-events-none" />
                           )}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-zinc-800/80 flex items-center justify-center border border-zinc-700/50 shadow-inner">
-                                <Cpu size={16} className={status === 'valid' || isConfigured ? "text-emerald-400" : "text-zinc-400"} />
+                                <Cpu size={16} className={isConnectedViaOAuth || status === 'valid' || isConfigured ? "text-emerald-400" : "text-zinc-400"} />
                               </div>
                               <span className="font-medium text-zinc-100 capitalize tracking-wide">{provider}</span>
                             </div>
                             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-950/50 border border-zinc-800/60">
-                              {status === 'valid' ? (
+                              {isConnectedViaOAuth ? (
+                                <UserCheck size={12} className="text-emerald-400" />
+                              ) : status === 'valid' ? (
                                 <Check size={12} className="text-emerald-400" />
                               ) : status === 'invalid' ? (
                                 <AlertCircle size={12} className="text-rose-400" />
@@ -261,63 +289,153 @@ export function SettingsModal({
                               ) : (
                                 <div className={`w-1.5 h-1.5 rounded-full ${isConfigured ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-600'}`} />
                               )}
-                              <span className={`text-[10px] font-medium uppercase tracking-wider ${status === 'valid' ? 'text-emerald-400' : status === 'invalid' ? 'text-rose-400' : status === 'validating' ? 'text-amber-400' : 'text-zinc-400'}`}>
-                                {status === 'valid' ? 'Verified' : status === 'invalid' ? 'Failed' : status === 'validating' ? 'Checking' : isConfigured ? 'Ready' : 'Setup'}
+                              <span className={`text-[10px] font-medium uppercase tracking-wider ${isConnectedViaOAuth ? 'text-emerald-400' : status === 'valid' ? 'text-emerald-400' : status === 'invalid' ? 'text-rose-400' : status === 'validating' ? 'text-amber-400' : 'text-zinc-400'}`}>
+                                {isConnectedViaOAuth ? 'OAuth' : status === 'valid' ? 'Verified' : status === 'invalid' ? 'Failed' : status === 'validating' ? 'Checking' : isConfigured ? 'Ready' : 'Setup'}
                               </span>
                             </div>
                           </div>
                           
-                          <div className="space-y-3 pt-2">
-                            <div className="space-y-1.5">
-                              <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">API Key</label>
-                              <div className="relative flex gap-2">
-                                <input 
-                                  type="password"
-                                  placeholder={`Enter ${provider} API Key`}
-                                  value={tempProviders[provider as AIProvider]?.apiKey || ''}
-                                  onChange={(e) => {
-                                    const newProviders = { ...tempProviders };
-                                    if (!newProviders[provider as AIProvider]) {
-                                      newProviders[provider as AIProvider] = { provider: provider as AIProvider, apiKey: '' };
-                                    }
-                                    newProviders[provider as AIProvider]!.apiKey = e.target.value;
-                                    setTempProviders(newProviders);
-                                    setVerificationStatus(prev => ({ ...prev, [provider]: 'idle' }));
-                                  }}
-                                  className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800/80 rounded-lg pl-3 pr-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all shadow-inner"
-                                />
-                                <button
-                                  onClick={() => handleVerifyAndSave(provider as AIProvider)}
-                                  disabled={status === 'validating' || (!tempProviders[provider as AIProvider]?.apiKey && provider !== 'ollama')}
-                                  className="shrink-0 bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-200 rounded-lg px-3 py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                  title="Verify and Save"
-                                >
-                                  {status === 'validating' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                </button>
-                              </div>
+                          {/* Google: special OAuth UI */}
+                          {isGoogleOAuth ? (
+                            <div className="pt-2">
+                              {isConnectedViaOAuth ? (
+                                <div className="space-y-3">
+                                  {/* Connected user profile */}
+                                  <div className="flex items-center gap-3 bg-zinc-950/50 border border-zinc-800/60 rounded-lg p-3">
+                                    {googleAuth.user?.picture ? (
+                                      <img
+                                        src={googleAuth.user.picture}
+                                        alt={googleAuth.user.name}
+                                        className="w-9 h-9 rounded-full ring-1 ring-emerald-500/30 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                                        <UserCheck size={16} className="text-emerald-400" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-zinc-100 truncate">{googleAuth.user?.name}</div>
+                                      <div className="text-[11px] text-zinc-400 truncate">{googleAuth.user?.email}</div>
+                                    </div>
+                                    <div className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      <span className="text-[10px] text-emerald-400 font-medium">Connected</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                                    Gemini requests will be billed against your personal Google quota.
+                                  </p>
+                                  <button
+                                    onClick={onGoogleLogout}
+                                    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 text-sm font-medium transition-colors"
+                                  >
+                                    <LogOut size={14} />
+                                    Disconnect Google Account
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                                    Connect your Google account to use Gemini with your own quota. No API key required.
+                                  </p>
+                                  <button
+                                    onClick={onGoogleLogin}
+                                    className="relative flex items-center w-full rounded-lg overflow-hidden border border-zinc-700/50 bg-white hover:bg-zinc-50 active:bg-zinc-100 transition-all duration-150 shadow-sm hover:shadow-md group"
+                                  >
+                                    {/* Colored left accent strip */}
+                                    <div className="flex items-center justify-center w-12 h-full shrink-0 bg-white border-r border-zinc-200">
+                                      <FcGoogle size={20} />
+                                    </div>
+                                    <span className="flex-1 text-center py-2.5 text-sm font-medium text-zinc-800 tracking-wide pr-12">
+                                      Sign in with Google
+                                    </span>
+                                  </button>
+                                  <div className="h-px bg-zinc-800/60" />
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">API Key (Optional)</label>
+                                    <div className="relative flex gap-2">
+                                      <input 
+                                        type="password"
+                                        placeholder="Or enter a Google API Key"
+                                        value={tempProviders['google']?.apiKey || ''}
+                                        onChange={(e) => {
+                                          const newProviders = { ...tempProviders };
+                                          if (!newProviders['google']) {
+                                            newProviders['google'] = { provider: 'google', apiKey: '' };
+                                          }
+                                          newProviders['google']!.apiKey = e.target.value;
+                                          setTempProviders(newProviders);
+                                          setVerificationStatus(prev => ({ ...prev, google: 'idle' }));
+                                        }}
+                                        className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800/80 rounded-lg pl-3 pr-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all shadow-inner"
+                                      />
+                                      <button
+                                        onClick={() => handleVerifyAndSave('google')}
+                                        disabled={status === 'validating' || !tempProviders['google']?.apiKey}
+                                        className="shrink-0 bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-200 rounded-lg px-3 py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        title="Verify and Save"
+                                      >
+                                        {status === 'validating' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-
-                            {provider === 'ollama' && (
+                          ) : (
+                            /* Default API key UI for all other providers */
+                            <div className="space-y-3 pt-2">
                               <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Base URL</label>
-                                <input 
-                                  type="text"
-                                  placeholder="http://localhost:11434"
-                                  value={tempProviders[provider as AIProvider]?.baseUrl || ''}
-                                  onChange={(e) => {
-                                    const newProviders = { ...tempProviders };
-                                    if (!newProviders[provider as AIProvider]) {
-                                      newProviders[provider as AIProvider] = { provider: provider as AIProvider, apiKey: '', baseUrl: '' };
-                                    }
-                                    newProviders[provider as AIProvider]!.baseUrl = e.target.value;
-                                    setTempProviders(newProviders);
-                                    setVerificationStatus(prev => ({ ...prev, [provider]: 'idle' }));
-                                  }}
-                                  className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all shadow-inner"
-                                />
+                                <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">API Key</label>
+                                <div className="relative flex gap-2">
+                                  <input 
+                                    type="password"
+                                    placeholder={`Enter ${provider} API Key`}
+                                    value={tempProviders[provider as AIProvider]?.apiKey || ''}
+                                    onChange={(e) => {
+                                      const newProviders = { ...tempProviders };
+                                      if (!newProviders[provider as AIProvider]) {
+                                        newProviders[provider as AIProvider] = { provider: provider as AIProvider, apiKey: '' };
+                                      }
+                                      newProviders[provider as AIProvider]!.apiKey = e.target.value;
+                                      setTempProviders(newProviders);
+                                      setVerificationStatus(prev => ({ ...prev, [provider]: 'idle' }));
+                                    }}
+                                    className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800/80 rounded-lg pl-3 pr-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all shadow-inner"
+                                  />
+                                  <button
+                                    onClick={() => handleVerifyAndSave(provider as AIProvider)}
+                                    disabled={status === 'validating' || (!tempProviders[provider as AIProvider]?.apiKey && provider !== 'ollama')}
+                                    className="shrink-0 bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-200 rounded-lg px-3 py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Verify and Save"
+                                  >
+                                    {status === 'validating' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                          </div>
+
+                              {provider === 'ollama' && (
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Base URL</label>
+                                  <input 
+                                    type="text"
+                                    placeholder="http://localhost:11434"
+                                    value={tempProviders[provider as AIProvider]?.baseUrl || ''}
+                                    onChange={(e) => {
+                                      const newProviders = { ...tempProviders };
+                                      if (!newProviders[provider as AIProvider]) {
+                                        newProviders[provider as AIProvider] = { provider: provider as AIProvider, apiKey: '', baseUrl: '' };
+                                      }
+                                      newProviders[provider as AIProvider]!.baseUrl = e.target.value;
+                                      setTempProviders(newProviders);
+                                      setVerificationStatus(prev => ({ ...prev, [provider]: 'idle' }));
+                                    }}
+                                    className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all shadow-inner"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

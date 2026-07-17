@@ -1,18 +1,31 @@
 import { AIConfig, AIProvider } from '../types';
+import { generateWithOAuth, fetchGeminiModelsWithOAuth } from './geminiOAuth';
 
 export class LLMService {
   private config: AIConfig;
+  private googleAccessToken: string | null;
 
-  constructor(config: AIConfig) {
+  constructor(config: AIConfig, googleAccessToken: string | null = null) {
     this.config = config;
+    this.googleAccessToken = googleAccessToken;
   }
 
   updateConfig(config: AIConfig) {
     this.config = config;
   }
 
+  setGoogleAccessToken(token: string | null) {
+    this.googleAccessToken = token;
+  }
+
   async fetchModels(provider: AIProvider): Promise<string[]> {
     const providerConfig = this.config.providers[provider];
+
+    // For Google provider, if OAuth token is available, use it
+    if (provider === 'google' && this.googleAccessToken) {
+      return fetchGeminiModelsWithOAuth(this.googleAccessToken);
+    }
+
     if (!providerConfig || (!providerConfig.apiKey && provider !== 'ollama')) {
       throw new Error(`API key not configured for ${provider}`);
     }
@@ -39,7 +52,6 @@ export class LLMService {
           ];
           
         case 'google':
-          // In a real app we could fetch from https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}
           const googleRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${providerConfig.apiKey}`);
           if (!googleRes.ok) throw new Error('Failed to fetch Google models');
           const googleData = await googleRes.json();
@@ -70,14 +82,21 @@ export class LLMService {
       throw new Error(`AI feature ${feature} is not configured.`);
     }
 
-    const providerConfig = this.config.providers[featureConfig.provider];
-    if (!providerConfig) {
-      throw new Error(`Provider ${featureConfig.provider} is not configured.`);
+    const { provider, modelId } = featureConfig;
+
+    // Route Google provider calls through OAuth if a token is available
+    if (provider === 'google' && this.googleAccessToken) {
+      console.log(`[LLMService] Using Google OAuth token for ${feature} (model: ${modelId})`);
+      return generateWithOAuth(this.googleAccessToken, modelId, prompt);
     }
 
-    // This is a placeholder. Later we will implement Langchain integration here.
-    console.log(`[LLMService] Generating for ${feature} using ${featureConfig.provider} (${featureConfig.modelId})...`);
-    
-    return `Placeholder generated response for ${feature} with model ${featureConfig.modelId}`;
+    const providerConfig = this.config.providers[provider];
+    if (!providerConfig) {
+      throw new Error(`Provider ${provider} is not configured.`);
+    }
+
+    // Placeholder for other providers — extend with real API calls here
+    console.log(`[LLMService] Generating for ${feature} using ${provider} (${modelId})...`);
+    return `Placeholder generated response for ${feature} with model ${modelId}`;
   }
 }

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - MarkFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #09090b;
+            color: #f4f4f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen">
+    <div class="max-w-4xl mx-auto px-6 py-16 sm:py-24">
+        <div class="mb-12">
+            <a href="/" class="text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-2 mb-8 text-sm font-medium">
+                &larr; Back to Editor
+            </a>
+            <h1 class="text-4xl font-bold tracking-tight text-zinc-100 mb-4">Privacy Policy</h1>
+            <p class="text-zinc-400 text-lg">Last Updated: July 17, 2026</p>
+        </div>
+
+        <div class="space-y-12 text-zinc-300 leading-relaxed">
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">1. Introduction</h2>
+                <p>Welcome to MarkFlow ("we," "our," or "us"). We are committed to protecting your privacy. This Privacy Policy explains how your information is collected, used, and safeguarded when you use our web-based markdown editor application.</p>
+                <p>MarkFlow is designed to be a client-side application. We prioritize your privacy by keeping your data local to your device whenever possible.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">2. Information We Collect</h2>
+                <p>We believe in data minimization. We only collect the information necessary to provide our services.</p>
+                <ul class="list-disc pl-6 space-y-2 text-zinc-400">
+                    <li><strong class="text-zinc-300">Google OAuth Data:</strong> When you connect your Google account to use Gemini AI, we receive your email address, name, and profile picture. This data is processed via Google Identity Services and stored locally on your browser.</li>
+                    <li><strong class="text-zinc-300">API Keys:</strong> If you manually enter API keys for services like OpenAI or Anthropic, these are stored securely in your browser's Local Storage. We never transmit these keys to our own servers.</li>
+                    <li><strong class="text-zinc-300">Local Content:</strong> The markdown documents you create are stored in your browser using IndexedDB/Local Storage. They are not uploaded to any central server unless you explicitly use a cloud-sync feature (if available).</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">3. How We Use Your Information</h2>
+                <p>The limited information we collect is used solely for the following purposes:</p>
+                <ul class="list-disc pl-6 space-y-2 text-zinc-400">
+                    <li>To authenticate your requests to third-party AI providers (e.g., passing your OAuth token to Google's Gemini API).</li>
+                    <li>To personalize your user interface (e.g., displaying your profile picture and name).</li>
+                    <li>To save your application preferences and documents locally on your device.</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">4. Third-Party Services</h2>
+                <p>MarkFlow integrates with third-party Artificial Intelligence providers. When you use the AI features, the content of your editor (the prompt and relevant context) is sent directly to these third-party APIs.</p>
+                <p>Please review the privacy policies of the providers you choose to use:</p>
+                <ul class="list-disc pl-6 space-y-2 text-zinc-400">
+                    <li><a href="https://policies.google.com/privacy" class="text-blue-400 hover:underline" target="_blank">Google Privacy Policy</a> (for Gemini features)</li>
+                    <li><a href="https://openai.com/policies/privacy-policy" class="text-blue-400 hover:underline" target="_blank">OpenAI Privacy Policy</a></li>
+                    <li><a href="https://www.anthropic.com/legal/privacy" class="text-blue-400 hover:underline" target="_blank">Anthropic Privacy Policy</a></li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">5. Data Security & Storage</h2>
+                <p>Your documents, settings, and authentication tokens are stored locally on your device within your web browser. We do not maintain a backend database containing your personal information or documents. If you clear your browser data, your MarkFlow data will be deleted.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">6. Changes to This Policy</h2>
+                <p>We may update this Privacy Policy from time to time to reflect changes in our practices or for other operational, legal, or regulatory reasons. We encourage you to review this page periodically for the latest information on our privacy practices.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-semibold text-zinc-100">7. Contact Us</h2>
+                <p>If you have any questions or concerns about this Privacy Policy or our data practices, please contact us by creating an issue on our GitHub repository.</p>
+            </section>
+        </div>
+
+        <div class="mt-16 pt-8 border-t border-zinc-800 text-center text-zinc-500 text-sm">
+            <p>&copy; 2026 MarkFlow. All rights reserved.</p>
+            <div class="mt-4 flex justify-center gap-6">
+                <a href="/terms-of-service.html" class="hover:text-zinc-300 transition-colors">Terms of Service</a>
+                <a href="/" class="hover:text-zinc-300 transition-colors">Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -260,9 +260,13 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
           className="w-full flex items-center justify-between p-2 hover:bg-zinc-800/50 rounded-lg transition-colors group"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-300 shrink-0 uppercase">
-              {userProfile.fullName ? userProfile.fullName.substring(0, 2) : 'GU'}
-            </div>
+            {userProfile.avatar ? (
+              <img src={userProfile.avatar} alt={userProfile.username} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-300 shrink-0 uppercase">
+                {userProfile.fullName ? userProfile.fullName.substring(0, 2) : 'GU'}
+              </div>
+            )}
             <div className="flex flex-col items-start text-left">
               <span className="text-sm font-medium text-zinc-200">{userProfile.username || 'guest'}</span>
             </div>
@@ -277,9 +281,13 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
           <div className="absolute bottom-full left-3 w-64 mb-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl py-1.5 z-50 overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between hover:bg-zinc-800/50 cursor-pointer transition-colors" onClick={() => setShowUserMenu(false)}>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-300 uppercase">
-                  {userProfile.fullName ? userProfile.fullName.substring(0, 2) : 'GU'}
-                </div>
+                {userProfile.avatar ? (
+                  <img src={userProfile.avatar} alt={userProfile.username} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-300 uppercase shrink-0">
+                    {userProfile.fullName ? userProfile.fullName.substring(0, 2) : 'GU'}
+                  </div>
+                )}
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-zinc-200">{userProfile.username || 'guest'}</span>
                   <span className="text-[11px] text-zinc-400">{userProfile.email || 'guest@example.com'}</span>

@@ -6,6 +6,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { AiMenu } from './components/AiMenu';
 import { ProfileModal } from './components/ProfileModal';
 import { useNotes } from './hooks/useNotes';
+import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { UserProfile, AIConfig } from './types';
 import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
@@ -32,6 +33,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { authState: googleAuth, login: googleLogin, logout: googleLogout } = useGoogleAuth();
   
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
     const saved = localStorage.getItem('markdown-ai-config-v1');
@@ -60,6 +62,25 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('markdown-user-profile-v1', JSON.stringify(userProfile));
   }, [userProfile]);
+
+  useEffect(() => {
+    if (googleAuth.isConnected && googleAuth.user) {
+      setUserProfile(prev => {
+        // Auto-populate only if the profile is still the default guest profile
+        const isDefault = prev.username === 'guest' && prev.fullName === 'Guest User' && !prev.email;
+        if (isDefault) {
+          return {
+            ...prev,
+            username: googleAuth.user?.email.split('@')[0] || 'guest',
+            fullName: googleAuth.user?.name || 'Guest User',
+            email: googleAuth.user?.email || '',
+            avatar: googleAuth.user?.picture
+          };
+        }
+        return prev;
+      });
+    }
+  }, [googleAuth.isConnected, googleAuth.user]);
 
   useEffect(() => {
     localStorage.setItem('markdown-ai-config-v1', JSON.stringify(aiConfig));
@@ -402,6 +423,9 @@ export default function App() {
         setSyncScrollEnabled={setSyncScrollEnabled}
         aiConfig={aiConfig}
         setAiConfig={setAiConfig}
+        googleAuth={googleAuth}
+        onGoogleLogin={googleLogin}
+        onGoogleLogout={googleLogout}
       />
       <ProfileModal
         isOpen={isProfileOpen}

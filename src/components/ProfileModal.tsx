@@ -33,6 +33,15 @@ export function ProfileModal({
         </div>
         
         <div className="p-6 space-y-6">
+          {userProfile.avatar && (
+            <div className="flex justify-center mb-6">
+              <img 
+                src={userProfile.avatar} 
+                alt={userProfile.username} 
+                className="w-20 h-20 rounded-full object-cover border-4 border-zinc-900 shadow-xl"
+              />
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-zinc-400 mb-2">
