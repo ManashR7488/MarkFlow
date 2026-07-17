@@ -6,9 +6,11 @@ import { SettingsModal } from './components/SettingsModal';
 import { AiMenu } from './components/AiMenu';
 import { ProfileModal } from './components/ProfileModal';
 import { useNotes } from './hooks/useNotes';
+import { useTemplates } from './hooks/useTemplates';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { UserProfile, AIConfig } from './types';
-import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize } from 'lucide-react';
+import { LLMService } from './ai/llm';
+import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize, Bot, Loader2 } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
 const defaultAIConfig: AIConfig = {
@@ -22,6 +24,7 @@ const defaultAIConfig: AIConfig = {
 
 export default function App() {
   const { notes, activeNoteId, setActiveNoteId, addNote, updateNote, deleteNote } = useNotes();
+  const { templates, addTemplate, updateTemplate, deleteTemplate } = useTemplates();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
   const [editorOpen, setEditorOpen] = useState(true);
@@ -33,6 +36,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isGeneratingMarkdown, setIsGeneratingMarkdown] = useState(false);
   const { authState: googleAuth, login: googleLogin, logout: googleLogout } = useGoogleAuth();
   
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
@@ -171,6 +175,35 @@ export default function App() {
     updateNote(activeNote.id, { content: formatted });
   };
 
+  const handlePromptToMarkdown = async () => {
+    if (!activeNote || !activeNote.content.trim()) return;
+    
+    if (!aiConfig.features.promptToMarkdown?.provider) {
+      alert('Prompt to Markdown AI is not configured. Please configure it in Settings -> AI.');
+      setIsSettingsOpen(true);
+      return;
+    }
+
+    setIsGeneratingMarkdown(true);
+    
+    try {
+      const llm = new LLMService(aiConfig, googleAuth.accessToken);
+      const defaultSystemPrompt = 'You are an expert markdown writer and converter. The user will give you a messy, broken markdown or plain text prompt. Your job is to convert it into clean, well-structured markdown. Correct any grammar or spelling mistakes. DO NOT add any additional information, conversational text, or context that is not present in the original prompt. Keep the original intent intact. Return ONLY the markdown output.';
+      const systemPrompt = aiConfig.features.promptToMarkdown.systemPrompt || defaultSystemPrompt;
+      
+      const fullPrompt = `${systemPrompt}\n\nUser Prompt:\n${activeNote.content}`;
+      const response = await llm.generate('promptToMarkdown', fullPrompt);
+      
+      const cleanedResponse = response.replace(/^```markdown\s*/i, '').replace(/\s*```$/, '').trim();
+      updateNote(activeNote.id, { content: cleanedResponse });
+    } catch (error: any) {
+      alert(error.message || 'Failed to convert prompt to markdown.');
+      console.error('Prompt to Markdown error:', error);
+    } finally {
+      setIsGeneratingMarkdown(false);
+    }
+  };
+
   const handleExportPDF = () => {
     window.print();
   };
@@ -204,6 +237,7 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
           userProfile={userProfile}
+          templates={templates}
         />
       )}
 
@@ -327,6 +361,15 @@ export default function App() {
               >
                 <Wand2 size={13} />
               </button>
+              <button
+                onClick={handlePromptToMarkdown}
+                disabled={isGeneratingMarkdown || !activeNote || !activeNote.content.trim()}
+                className="h-5 flex items-center justify-center gap-1.5 hover:bg-zinc-800 hover:text-purple-400 rounded transition-colors ml-1 px-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Convert Prompt to Markdown"
+              >
+                {isGeneratingMarkdown ? <Loader2 size={13} className="animate-spin text-purple-400" /> : <Bot size={13} />}
+                <span className="text-[10px] uppercase font-medium">Prompt to MD</span>
+              </button>
               <AiMenu aiConfig={aiConfig} setAiConfig={setAiConfig} onOpenSettings={() => setIsSettingsOpen(true)} />
             </div>
             
@@ -426,6 +469,10 @@ export default function App() {
         googleAuth={googleAuth}
         onGoogleLogin={googleLogin}
         onGoogleLogout={googleLogout}
+        templates={templates}
+        onAddTemplate={addTemplate}
+        onUpdateTemplate={updateTemplate}
+        onDeleteTemplate={deleteTemplate}
       />
       <ProfileModal
         isOpen={isProfileOpen}

@@ -8,6 +8,14 @@ export interface Note {
   archived?: boolean;
 }
 
+export interface Template {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface UserProfile {
   username: string;
   fullName: string;
@@ -27,6 +35,7 @@ export interface AIFeatureModelConfig {
   provider: AIProvider;
   modelId: string;
   enabled?: boolean;
+  systemPrompt?: string;
 }
 
 export interface AIConfig {

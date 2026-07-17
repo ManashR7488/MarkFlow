@@ -2,20 +2,7 @@ import { Plus, Trash2, FileText, X, Search, MoreVertical, Copy, Edit2, Pin, Arch
 import { useState, useRef, useEffect } from 'react';
 import { Note, UserProfile } from '../types';
 
-export const TEMPLATES = {
-  journal: {
-    name: 'Journal Entry',
-    content: `# Journal Entry - ${new Date().toLocaleDateString()}\n\n## Intentions\n- \n\n## What happened today?\n\n## Gratitude\n1. \n2. \n3. `
-  },
-  meeting: {
-    name: 'Meeting Notes',
-    content: `# Meeting Notes\n\n**Date:** ${new Date().toLocaleDateString()}\n**Attendees:** \n\n## Agenda\n1. \n\n## Discussion\n\n## Action Items\n- [ ] `
-  },
-  project: {
-    name: 'Project Plan',
-    content: `# Project Plan: [Project Name]\n\n## Overview\n\n## Objectives\n- \n\n## Timeline\n- Phase 1:\n- Phase 2:\n\n## Resources\n- `
-  }
-};
+
 
 interface SidebarProps {
   notes: Note[];
@@ -28,9 +15,10 @@ interface SidebarProps {
   onOpenSettings?: () => void;
   onOpenProfile?: () => void;
   userProfile: UserProfile;
+  templates: import('../types').Template[];
 }
 
-export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDeleteNote, onUpdateNote, onClose, onOpenSettings, onOpenProfile, userProfile }: SidebarProps) {
+export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDeleteNote, onUpdateNote, onClose, onOpenSettings, onOpenProfile, userProfile, templates }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
@@ -134,9 +122,9 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
                     <LayoutTemplate size={12} />
                     Templates
                   </div>
-                  {Object.entries(TEMPLATES).map(([key, template]) => (
+                  {templates.map((template) => (
                     <button
-                      key={key}
+                      key={template.id}
                       onClick={() => {
                         onAddNote(template.name, template.content);
                         setShowAddMenu(false);

@@ -5,6 +5,8 @@ const STORAGE_KEY = 'markflow_google_auth';
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
 const SCOPES = [
   'https://www.googleapis.com/auth/generative-language.peruserquota',
+  'https://www.googleapis.com/auth/generative-language.retriever',
+  'https://www.googleapis.com/auth/cloud-platform',
   'openid',
   'email',
   'profile',

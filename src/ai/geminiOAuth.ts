@@ -22,18 +22,11 @@ export async function generateWithOAuth(
   // Default to gemini-1.5-flash if no model is explicitly selected
   const model = modelId || 'gemini-1.5-flash';
 
-  const url = `${GEMINI_BASE}/models/${model}:generateContent`;
+  const url = `${GEMINI_BASE}/interactions`;
 
   const body = {
-    contents: [
-      {
-        parts: [{ text: prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 2048,
-    },
+    model: model,
+    input: prompt
   };
 
   let response: Response;
@@ -85,7 +78,10 @@ export async function generateWithOAuth(
   const data = await response.json();
 
   // Extract the text from the response
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // New format uses interactions endpoint with steps array
+  const outputStep = data?.steps?.find((step: any) => step.type === 'model_output');
+  const text = outputStep?.content?.[0]?.text;
+  
   if (!text) {
     throw new Error('Gemini returned an empty response. Please try again.');
   }

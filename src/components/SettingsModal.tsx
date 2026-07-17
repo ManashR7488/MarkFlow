@@ -1,7 +1,7 @@
-import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save, LogOut, UserCheck } from 'lucide-react';
+import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save, LogOut, UserCheck, LayoutTemplate, Trash2, Plus, Edit2, ChevronDown, Bot, Undo2 } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { useState, useEffect } from 'react';
-import { AIConfig, AIProvider, AIProviderConfig, GoogleAuthState } from '../types';
+import { AIConfig, AIProvider, AIProviderConfig, GoogleAuthState, Template } from '../types';
 import { LLMService } from '../ai/llm';
 
 interface SettingsModalProps {
@@ -20,6 +20,10 @@ interface SettingsModalProps {
   googleAuth: GoogleAuthState;
   onGoogleLogin: () => void;
   onGoogleLogout: () => void;
+  templates: Template[];
+  onAddTemplate: (name: string, content: string) => void;
+  onUpdateTemplate: (id: string, updates: Partial<Template>) => void;
+  onDeleteTemplate: (id: string) => void;
 }
 
 export function SettingsModal({
@@ -38,12 +42,25 @@ export function SettingsModal({
   googleAuth,
   onGoogleLogin,
   onGoogleLogout,
+  templates,
+  onAddTemplate,
+  onUpdateTemplate,
+  onDeleteTemplate,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [templateForm, setTemplateForm] = useState({ name: '', content: '' });
+  const [showNewTemplateMenu, setShowNewTemplateMenu] = useState(false);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
+  const [aiGenerateError, setAiGenerateError] = useState<string | null>(null);
+  const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({});
   
   const [tempProviders, setTempProviders] = useState<Partial<Record<AIProvider, AIProviderConfig>>>({});
   const [verificationStatus, setVerificationStatus] = useState<Record<string, 'idle' | 'validating' | 'valid' | 'invalid'>>({});
+  const [isRefreshingModels, setIsRefreshingModels] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -52,12 +69,15 @@ export function SettingsModal({
   }, [isOpen, aiConfig.providers]);
 
   const fetchModels = async (provider: AIProvider) => {
+    setIsRefreshingModels(prev => ({ ...prev, [provider]: true }));
     try {
       const llm = new LLMService(aiConfig, provider === 'google' ? googleAuth.accessToken : null);
       const models = await llm.fetchModels(provider);
       setAvailableModels(prev => ({ ...prev, [provider]: models }));
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsRefreshingModels(prev => ({ ...prev, [provider]: false }));
     }
   };
 
@@ -104,6 +124,49 @@ export function SettingsModal({
     }
   };
 
+  const handleGenerateTemplate = async () => {
+    if (!aiPrompt.trim()) return;
+    
+    if (!aiConfig.features.templateGeneration?.provider) {
+      setAiGenerateError('Template Generation AI is not configured. Please configure it in the AI tab.');
+      return;
+    }
+
+    setIsGeneratingTemplate(true);
+    setAiGenerateError(null);
+    
+    try {
+      const llm = new LLMService(aiConfig, googleAuth.accessToken);
+      const systemPrompt = `You are an expert markdown template creator. The user will give you a topic or purpose, and you will generate a useful, structured markdown template for them. Return ONLY a valid JSON object with two fields: "name" (a short, catchy string title) and "content" (the markdown template itself as a string, using # for headers, etc). Do not include markdown blocks around the JSON.\n\nUser request: ${aiPrompt}`;
+      
+      const response = await llm.generate('templateGeneration', systemPrompt);
+      console.log(response);
+      
+      try {
+        // Try to parse the JSON. It might have markdown code blocks around it.
+        const cleanedResponse = response.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+        const parsed = JSON.parse(cleanedResponse);
+        
+        if (parsed.name && parsed.content) {
+          setTemplateForm({ name: parsed.name, content: parsed.content });
+          setEditingTemplateId('new');
+          setShowAiPrompt(false);
+          setAiPrompt('');
+        } else {
+          setAiGenerateError('AI returned an invalid template format.');
+        }
+      } catch (parseError) {
+        setAiGenerateError('Failed to parse AI response. Please try again.');
+        console.error('Parse error:', parseError, response);
+      }
+    } catch (error: any) {
+      setAiGenerateError(error.message || 'Failed to generate template.');
+      console.error('Generate error:', error);
+    } finally {
+      setIsGeneratingTemplate(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -139,8 +202,15 @@ export function SettingsModal({
               <Sparkles size={16} />
               AI
             </button>
+            <button 
+              onClick={() => setActiveTab('templates')}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'templates' ? 'bg-zinc-800/80 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'}`}
+            >
+              <LayoutTemplate size={16} />
+              Templates
+            </button>
           </div>
-
+          
           {/* Settings Content */}
           <div className="flex-1 overflow-y-auto p-6 md:p-8">
             {activeTab === 'general' && (
@@ -530,21 +600,289 @@ export function SettingsModal({
                                   </select>
                                   <button
                                     onClick={() => aiConfig.features[feature]?.provider && fetchModels(aiConfig.features[feature]!.provider)}
-                                    disabled={!aiConfig.features[feature]?.provider}
+                                    disabled={!aiConfig.features[feature]?.provider || (aiConfig.features[feature]?.provider ? isRefreshingModels[aiConfig.features[feature]!.provider] : false)}
                                     className="shrink-0 bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-300 rounded-lg px-2.5 py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     title="Refresh Models"
                                   >
-                                    <Sparkles size={16} />
+                                    {aiConfig.features[feature]?.provider && isRefreshingModels[aiConfig.features[feature]!.provider] ? (
+                                      <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                      <Sparkles size={16} />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => setExpandedFeature(expandedFeature === feature ? null : feature)}
+                                    disabled={!aiConfig.features[feature]?.provider}
+                                    className={`shrink-0 border rounded-lg px-2.5 py-2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                                      expandedFeature === feature 
+                                        ? 'bg-purple-500/20 border-purple-500/30 text-purple-400' 
+                                        : 'bg-zinc-800/80 hover:bg-zinc-700 border-zinc-700/50 text-zinc-400 hover:text-zinc-300'
+                                    }`}
+                                    title="Configure Feature"
+                                  >
+                                    <Settings size={16} />
                                   </button>
                                 </div>
                               </div>
                             </div>
+                            
+                            {expandedFeature === feature && (
+                              <div className="mt-4 pt-4 border-t border-zinc-800/60 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                                      <Bot size={14} className="text-purple-400" />
+                                      System Prompt
+                                    </label>
+                                    {aiConfig.features[feature]?.systemPrompt && (
+                                      <button
+                                        onClick={() => {
+                                          const newConfig = { ...aiConfig };
+                                          delete newConfig.features[feature]!.systemPrompt;
+                                          setAiConfig(newConfig);
+                                        }}
+                                        className="text-[11px] text-zinc-500 hover:text-rose-400 transition-colors flex items-center gap-1"
+                                      >
+                                        <Undo2 size={12} />
+                                        Reset to Default
+                                      </button>
+                                    )}
+                                  </div>
+                                  <textarea
+                                    value={aiConfig.features[feature]?.systemPrompt || ''}
+                                    onChange={(e) => {
+                                      setAiConfig({
+                                        ...aiConfig,
+                                        features: {
+                                          ...aiConfig.features,
+                                          [feature]: { ...aiConfig.features[feature]!, systemPrompt: e.target.value }
+                                        }
+                                      });
+                                    }}
+                                    placeholder="Leave blank to use the default system prompt..."
+                                    className="w-full h-24 bg-zinc-950 border border-zinc-800/80 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all shadow-inner resize-none font-mono text-[13px] leading-relaxed placeholder:text-zinc-600"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'templates' && (
+              <div className="space-y-8 max-w-4xl m-auto pb-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+                      <LayoutTemplate size={20} className="text-purple-400" />
+                      Document Templates
+                    </h3>
+                    <p className="text-sm text-zinc-400 mt-1">Manage the templates available in your "Blank Note" dropdown.</p>
+                  </div>
+                  {!editingTemplateId && !showAiPrompt && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowNewTemplateMenu(!showNewTemplateMenu)}
+                        className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                      >
+                        <Plus size={16} />
+                        New Template
+                        <ChevronDown size={14} className={`transition-transform ${showNewTemplateMenu ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showNewTemplateMenu && (
+                        <div className="absolute right-0 mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <button
+                            onClick={() => {
+                              setEditingTemplateId('new');
+                              setTemplateForm({ name: '', content: '' });
+                              setShowNewTemplateMenu(false);
+                            }}
+                            className="w-full text-left px-3 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 flex items-center gap-2 transition-colors"
+                          >
+                            <LayoutTemplate size={16} />
+                            Manual Create
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowAiPrompt(true);
+                              setShowNewTemplateMenu(false);
+                            }}
+                            className="w-full text-left px-3 py-2.5 text-sm text-purple-400 hover:bg-zinc-800 hover:text-purple-300 flex items-center gap-2 transition-colors border-t border-zinc-800/80"
+                          >
+                            <Bot size={16} />
+                            AI Create
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {showAiPrompt && (
+                  <div className="bg-purple-900/10 border border-purple-500/20 rounded-xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-2 text-purple-400 mb-2">
+                      <Sparkles size={18} />
+                      <h4 className="font-medium">Generate Template with AI</h4>
+                    </div>
+                    <p className="text-sm text-zinc-400">Describe what kind of template you need. The AI will generate the structure for you.</p>
+                    
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="e.g. A weekly team sync meeting with agenda, updates, and blockers..."
+                        className="flex-1 bg-zinc-950 border border-zinc-800/80 rounded-lg px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all shadow-inner"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleGenerateTemplate();
+                        }}
+                        disabled={isGeneratingTemplate}
+                      />
+                      <button
+                        onClick={handleGenerateTemplate}
+                        disabled={!aiPrompt.trim() || isGeneratingTemplate}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isGeneratingTemplate ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Bot size={16} />
+                            Generate
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {aiGenerateError && (
+                      <div className="flex items-start gap-2 text-red-400 bg-red-400/10 p-3 rounded-lg text-sm">
+                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                        <p>{aiGenerateError}</p>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          setShowAiPrompt(false);
+                          setAiPrompt('');
+                          setAiGenerateError(null);
+                        }}
+                        className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                        disabled={isGeneratingTemplate}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {editingTemplateId ? (
+                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-6 space-y-4">
+                    <h4 className="text-zinc-100 font-medium">{editingTemplateId === 'new' ? 'Create Template' : 'Edit Template'}</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Template Name</label>
+                        <input
+                          type="text"
+                          value={templateForm.name}
+                          onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
+                          placeholder="e.g. Daily Standup"
+                          className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all shadow-inner"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Markdown Content</label>
+                        <textarea
+                          value={templateForm.content}
+                          onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
+                          placeholder="# Title\n\nWrite your template content here..."
+                          className="w-full h-48 bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all shadow-inner resize-y"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setEditingTemplateId(null);
+                          setTemplateForm({ name: '', content: '' });
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (editingTemplateId === 'new') {
+                            onAddTemplate(templateForm.name || 'Untitled Template', templateForm.content);
+                          } else {
+                            onUpdateTemplate(editingTemplateId, { name: templateForm.name || 'Untitled Template', content: templateForm.content });
+                          }
+                          setEditingTemplateId(null);
+                          setTemplateForm({ name: '', content: '' });
+                        }}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-zinc-700/50"
+                      >
+                        Save Template
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {templates.map(template => (
+                      <div key={template.id} className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 hover:border-zinc-700/80 transition-colors flex flex-col">
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-medium text-zinc-200">{template.name}</h4>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setTemplateForm({ name: template.name, content: template.content });
+                                setEditingTemplateId(template.id);
+                              }}
+                              className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                              title="Edit Template"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this template?')) {
+                                  onDeleteTemplate(template.id);
+                                }
+                              }}
+                              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors"
+                              title="Delete Template"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 bg-zinc-950/50 rounded-lg p-3 overflow-hidden">
+                          <pre className="text-[11px] font-mono text-zinc-500 whitespace-pre-wrap line-clamp-4">
+                            {template.content || <span className="italic">Empty template</span>}
+                          </pre>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {templates.length === 0 && (
+                      <div className="col-span-1 md:col-span-2 py-12 text-center bg-zinc-900/20 border border-zinc-800/50 rounded-xl border-dashed">
+                        <LayoutTemplate size={32} className="mx-auto mb-3 text-zinc-600" />
+                        <p className="text-sm text-zinc-400">No templates found.</p>
+                        <p className="text-xs text-zinc-500 mt-1">Create one to quickly generate standardized notes.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -95,6 +95,64 @@ export class LLMService {
       throw new Error(`Provider ${provider} is not configured.`);
     }
 
+    if (provider === 'openai') {
+      console.log(`[LLMService] Generating for ${feature} using OpenAI (${modelId})...`);
+      if (!providerConfig.apiKey) {
+        throw new Error('OpenAI API key is missing.');
+      }
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${providerConfig.apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            { role: 'user', content: prompt }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        let errorMsg = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error?.message || errorMsg;
+        } catch (e) {}
+        throw new Error(`OpenAI API error: ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    }
+
+    if (provider === 'ollama') {
+      console.log(`[LLMService] Generating for ${feature} using Ollama (${modelId})...`);
+      const baseUrl = providerConfig.baseUrl || 'http://localhost:11434';
+      const response = await fetch(`${baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelId,
+          prompt: prompt,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        let errorMsg = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {}
+        throw new Error(`Ollama API error: ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      return data.response;
+    }
+
     // Placeholder for other providers — extend with real API calls here
     console.log(`[LLMService] Generating for ${feature} using ${provider} (${modelId})...`);
     return `Placeholder generated response for ${feature} with model ${modelId}`;
