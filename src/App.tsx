@@ -3,11 +3,21 @@ import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
 import { SettingsModal } from './components/SettingsModal';
+import { AiMenu } from './components/AiMenu';
 import { ProfileModal } from './components/ProfileModal';
 import { useNotes } from './hooks/useNotes';
-import { UserProfile } from './types';
+import { UserProfile, AIConfig } from './types';
 import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
+
+const defaultAIConfig: AIConfig = {
+  providers: {},
+  features: {
+    autoComplete: null,
+    promptToMarkdown: null,
+    templateGeneration: null,
+  }
+};
 
 export default function App() {
   const { notes, activeNoteId, setActiveNoteId, addNote, updateNote, deleteNote } = useNotes();
@@ -22,6 +32,19 @@ export default function App() {
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
+    const saved = localStorage.getItem('markdown-ai-config-v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse AI config');
+      }
+    }
+    return defaultAIConfig;
+  });
+
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('markdown-user-profile-v1');
     if (saved) {
@@ -37,6 +60,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('markdown-user-profile-v1', JSON.stringify(userProfile));
   }, [userProfile]);
+
+  useEffect(() => {
+    localStorage.setItem('markdown-ai-config-v1', JSON.stringify(aiConfig));
+  }, [aiConfig]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -279,6 +306,7 @@ export default function App() {
               >
                 <Wand2 size={13} />
               </button>
+              <AiMenu aiConfig={aiConfig} setAiConfig={setAiConfig} onOpenSettings={() => setIsSettingsOpen(true)} />
             </div>
             
             {activeNote && (
@@ -372,6 +400,8 @@ export default function App() {
         setSpellCheckEnabled={setSpellCheckEnabled}
         syncScrollEnabled={syncScrollEnabled}
         setSyncScrollEnabled={setSyncScrollEnabled}
+        aiConfig={aiConfig}
+        setAiConfig={setAiConfig}
       />
       <ProfileModal
         isOpen={isProfileOpen}

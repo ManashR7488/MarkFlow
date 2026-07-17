@@ -2,6 +2,8 @@ import { useRef, useState, useEffect } from 'react';
 import { Bold, Italic, List, ListOrdered, Link, Heading1, Heading2, Quote, Code, Download, Smile } from 'lucide-react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
+import { useAutocomplete, SuggestionType } from '../hooks/useAutocomplete';
+import { AutocompletePopup } from './AutocompletePopup';
 
 interface EditorProps {
   content: string;
@@ -13,6 +15,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const { state: autocompleteState, handleInput, onKeyDown, closeSuggestions } = useAutocomplete();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -100,8 +103,26 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
     }
   };
 
+  const handleAutocompleteInsert = (insertText: string, triggerIdx: number, type: SuggestionType) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const before = content.substring(0, triggerIdx);
+    const after = content.substring(textarea.selectionStart);
+    
+    // Replace the trigger with the insertText
+    const newContent = before + insertText + after;
+    onChange(newContent);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(before.length + insertText.length, before.length + insertText.length);
+      closeSuggestions();
+    }, 0);
+  };
+
   return (
-    <div className="flex flex-col w-full h-full relative">
+    <div className="flex flex-col w-full h-full relative" onClick={() => closeSuggestions()}>
       <div className="min-h-[40px] border-b border-zinc-800/80 bg-zinc-950 flex flex-wrap items-center px-2 py-1 shrink-0 gap-1 z-10 relative">
         <ToolbarButton icon={<Bold size={14} />} onClick={() => insertFormatting('**', '**')} title="Bold" />
         <ToolbarButton icon={<Italic size={14} />} onClick={() => insertFormatting('*', '*')} title="Italic" />
@@ -127,15 +148,31 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
         <div className="flex-1"></div>
         <ToolbarButton icon={<Download size={14} />} onClick={handleDownloadMd} title="Download .md" />
       </div>
-      <textarea
-        ref={textareaRef}
-        id="editor-textarea"
-        value={content}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Start typing your markdown..."
-        className="w-full flex-1 bg-zinc-950 text-zinc-300 font-mono text-[15px] p-6 resize-none outline-none leading-relaxed custom-scrollbar"
-        spellCheck={spellCheck}
-      />
+      <div className="flex-1 relative min-h-0">
+        <textarea
+          ref={textareaRef}
+          id="editor-textarea"
+          value={content}
+          onChange={(e) => {
+            onChange(e.target.value);
+            handleInput(e.target);
+          }}
+          onKeyDown={(e) => {
+            if (onKeyDown(e, handleAutocompleteInsert)) return;
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeSuggestions();
+          }}
+          placeholder="Start typing your markdown..."
+          className="w-full h-full bg-zinc-950 text-zinc-300 font-mono text-[15px] p-6 resize-none outline-none leading-relaxed custom-scrollbar block"
+          spellCheck={spellCheck}
+        />
+        <AutocompletePopup 
+          state={autocompleteState} 
+          onSelect={(item) => handleAutocompleteInsert(item.insertText, autocompleteState.triggerIndex, autocompleteState.type)} 
+        />
+      </div>
     </div>
   );
 }

@@ -347,25 +347,35 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
       {/* Delete Confirmation Modal */}
       {noteToDelete && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setNoteToDelete(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-medium text-zinc-100 mb-2">Delete Document</h3>
-            <p className="text-sm text-zinc-400 mb-6">Are you sure you want to delete this document? This action cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button 
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between h-14 px-4 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm">
+              <h2 className="font-medium text-[15px] text-zinc-200">Delete Document</h2>
+              <button
                 onClick={() => setNoteToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
+                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-md transition-colors"
               >
-                Cancel
+                <X size={18} />
               </button>
-              <button 
-                onClick={() => {
-                  onDeleteNote(noteToDelete);
-                  setNoteToDelete(null);
-                }}
-                className="px-4 py-2 text-sm font-medium bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-md transition-colors"
-              >
-                Delete
-              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-zinc-400 mb-6">Are you sure you want to delete this document? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setNoteToDelete(null)}
+                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    onDeleteNote(noteToDelete);
+                    setNoteToDelete(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-md transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

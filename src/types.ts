@@ -13,3 +13,26 @@ export interface UserProfile {
   fullName: string;
   email: string;
 }
+
+export type AIProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+
+export interface AIProviderConfig {
+  provider: AIProvider;
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export interface AIFeatureModelConfig {
+  provider: AIProvider;
+  modelId: string;
+  enabled?: boolean;
+}
+
+export interface AIConfig {
+  providers: Partial<Record<AIProvider, AIProviderConfig>>;
+  features: {
+    autoComplete: AIFeatureModelConfig | null;
+    promptToMarkdown: AIFeatureModelConfig | null;
+    templateGeneration: AIFeatureModelConfig | null;
+  };
+}

@@ -22,8 +22,8 @@ export function ProfileModal({
         className="bg-zinc-950 border border-zinc-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800/80 bg-zinc-900/20">
-          <h2 className="text-lg font-medium text-zinc-100">Profile</h2>
+        <div className="flex items-center justify-between h-14 px-4 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-sm">
+          <h2 className="font-medium text-[15px] text-zinc-200">Profile</h2>
           <button
             onClick={onClose}
             className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-md transition-colors"

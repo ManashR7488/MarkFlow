@@ -1,23 +1,29 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Custom Scrollbar for a cleaner aesthetic */
-.custom-scrollbar::-webkit-scrollbar {
+/* Custom Scrollbar for a cleaner aesthetic globally */
+*::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+*::-webkit-scrollbar-thumb {
+  background: #27272a; /* zinc-800 */
   border-radius: 4px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+*::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46; /* zinc-700 */
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a transparent;
 }
 
 /* Print Styles for PDF Export */
