@@ -1,4 +1,4 @@
-import { Plus, Trash2, FileText, X, Search, MoreVertical, Copy, Edit2, Pin, Archive, LayoutTemplate, Store, Sparkles, User, Settings, HelpCircle, LogOut, ChevronRight, Paintbrush } from 'lucide-react';
+import { Plus, Trash2, FileText, X, Search, MoreVertical, Copy, Edit2, Pin, Archive, LayoutTemplate, Store, Sparkles, User, Settings, HelpCircle, LogOut, ChevronRight, Paintbrush, Lock, Unlock } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Note, UserProfile } from '../types';
 
@@ -16,9 +16,10 @@ interface SidebarProps {
   onOpenProfile?: () => void;
   userProfile: UserProfile;
   templates: import('../types').Template[];
+  onToggleLock?: (note: Note) => void;
 }
 
-export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDeleteNote, onUpdateNote, onClose, onOpenSettings, onOpenProfile, userProfile, templates }: SidebarProps) {
+export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDeleteNote, onUpdateNote, onClose, onOpenSettings, onOpenProfile, userProfile, templates, onToggleLock }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
@@ -191,6 +192,7 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
                 <div className="truncate text-sm font-medium flex items-center gap-2">
                   {note.title || 'Untitled Note'}
                   {note.pinned && <Pin size={10} className="text-zinc-500 fill-zinc-500" />}
+                  {note.locked && <Lock size={10} className="text-rose-500" />}
                 </div>
               )}
             </div>
@@ -225,6 +227,11 @@ export function Sidebar({ notes, activeNoteId, onSelectNote, onAddNote, onDelete
                   <button onClick={(e) => { e.stopPropagation(); handleArchive(note); }} className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center gap-2">
                     <Archive size={14} /> Archive
                   </button>
+                  {onToggleLock && (
+                    <button onClick={(e) => { e.stopPropagation(); onToggleLock(note); setActiveMenuId(null); }} className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center gap-2">
+                      {note.locked ? <><Unlock size={14} /> Unlock</> : <><Lock size={14} /> Lock</>}
+                    </button>
+                  )}
                   <div className="h-px bg-zinc-700 my-1"></div>
                   <button onClick={(e) => { e.stopPropagation(); setNoteToDelete(note.id); setActiveMenuId(null); }} className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-zinc-700 hover:text-red-300 flex items-center gap-2">
                     <Trash2 size={14} /> Delete

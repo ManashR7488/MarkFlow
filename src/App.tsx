@@ -8,9 +8,10 @@ import { ProfileModal } from './components/ProfileModal';
 import { useNotes } from './hooks/useNotes';
 import { useTemplates } from './hooks/useTemplates';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
+import { useSecurity } from './hooks/useSecurity';
 import { UserProfile, AIConfig } from './types';
 import { LLMService } from './ai/llm';
-import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, Maximize, Minimize, Bot, Loader2 } from 'lucide-react';
+import { FileText, Download, PanelLeft, PanelRight, Eye, Edit2, GripVertical, Type, AlignLeft, SpellCheck, Hash, Undo2, Redo2, Wand2, ArrowDownUp, ArrowLeftRight, Maximize, Minimize, Bot, Loader2, Lock } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
 const defaultAIConfig: AIConfig = {
@@ -34,10 +35,13 @@ export default function App() {
   const [spellCheckEnabled, setSpellCheckEnabled] = useState<boolean>(false);
   const [syncScrollEnabled, setSyncScrollEnabled] = useState<boolean>(false);
   const [focusMode, setFocusMode] = useState<boolean>(false);
+  const [panelsSwapped, setPanelsSwapped] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isGeneratingMarkdown, setIsGeneratingMarkdown] = useState(false);
   const { authState: googleAuth, login: googleLogin, logout: googleLogout } = useGoogleAuth();
+  const security = useSecurity(notes, updateNote);
+  const [showNoPasswordModal, setShowNoPasswordModal] = useState(false);
   
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
     const saved = localStorage.getItem('markdown-ai-config-v1');
@@ -166,6 +170,29 @@ export default function App() {
     }
   };
 
+  const handleLockRequest = async (noteId: string) => {
+    if (!security.isConfigured) {
+      setShowNoPasswordModal(true);
+    } else {
+      try {
+        await security.lockNote(noteId);
+      } catch (e: any) {
+        if (e.message === 'VAULT_LOCKED') {
+          const pass = window.prompt("Your vault is currently locked. Please enter your Master Password to encrypt this note:");
+          if (pass) {
+            try {
+              await security.lockNote(noteId, pass);
+            } catch (err: any) {
+              alert("Failed to lock note: " + err.message);
+            }
+          }
+        } else {
+          alert("Failed to lock note: " + e.message);
+        }
+      }
+    }
+  };
+
   const handleFormat = () => {
     if (!activeNote) return;
     const formatted = activeNote.content
@@ -232,12 +259,26 @@ export default function App() {
           }}
           onAddNote={addNote}
           onDeleteNote={deleteNote}
-          onUpdateNote={updateNote}
+          onUpdateNote={(id, updates) => {
+          updateNote(id, updates);
+          if (updates.archived && activeNoteId === id) {
+            const remaining = notes.filter(n => n.id !== id && !n.archived);
+            setActiveNoteId(remaining.length > 0 ? remaining[0].id : null);
+          }
+        }}
           onClose={() => setSidebarOpen(false)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
           userProfile={userProfile}
           templates={templates}
+          onToggleLock={(note) => {
+            if (note.locked) {
+              // Will be unlocked from editor
+              setActiveNoteId(note.id);
+            } else {
+              handleLockRequest(note.id);
+            }
+          }}
         />
       )}
 
@@ -294,20 +335,42 @@ export default function App() {
 
         {/* Editor / Preview Split */}
         {activeNote ? (
-          <Group orientation="horizontal" className="flex-1 overflow-hidden">
-            {(!isMobile ? editorOpen : !showPreviewMobile) && (
-              <Panel
-                id="editor"
-                defaultSize={50}
-                minSize={20}
-                className="border-r border-zinc-800/80 no-print flex"
-              >
-                <Editor
-                  content={activeNote.content}
-                  onChange={(content) => updateNote(activeNote.id, { content })}
-                  spellCheck={spellCheckEnabled}
-                />
-              </Panel>
+          <Group orientation="horizontal" className="flex-1 overflow-hidden" key={panelsSwapped ? 'swapped' : 'normal'}>
+            {/* First Panel: Editor or Preview depending on swap state */}
+            {panelsSwapped ? (
+              // Swapped: Preview first
+              (!isMobile ? true : showPreviewMobile) && (
+                <Panel
+                  id="preview"
+                  defaultSize={50}
+                  minSize={20}
+                  className="overflow-hidden bg-zinc-950/50 print-area flex border-r border-zinc-800/80"
+                >
+                  <Preview content={activeNote.content} fontSize={fontSize} lineHeight={lineHeight} />
+                </Panel>
+              )
+            ) : (
+              // Normal: Editor first
+              (!isMobile ? editorOpen : !showPreviewMobile) && (
+                <Panel
+                  id="editor"
+                  defaultSize={50}
+                  minSize={20}
+                  className="border-r border-zinc-800/80 no-print flex"
+                >
+                  <Editor
+                    content={activeNote.content}
+                    onChange={(content) => updateNote(activeNote.id, { content })}
+                    spellCheck={spellCheckEnabled}
+                    isLocked={activeNote.locked && !security.unlockedSessionNotes.has(activeNote.id)}
+                    hasPasskey={!!security.config.passkeyId}
+                    onUnlock={(password) => security.unlockNote(activeNote.id, password)}
+                    onUnlockPasskey={() => security.unlockNote(activeNote.id)}
+                    onLock={() => handleLockRequest(activeNote.id)}
+                    unlockError={security.unlockError}
+                  />
+                </Panel>
+              )
             )}
             
             {(!isMobile ? editorOpen : false) && (
@@ -318,15 +381,41 @@ export default function App() {
               </Separator>
             )}
             
-            {(!isMobile ? true : showPreviewMobile) && (
-              <Panel
-                id="preview"
-                defaultSize={50}
-                minSize={20}
-                className="overflow-hidden bg-zinc-950/50 print-area flex"
-              >
-                <Preview content={activeNote.content} fontSize={fontSize} lineHeight={lineHeight} />
-              </Panel>
+            {/* Second Panel: Preview or Editor depending on swap state */}
+            {panelsSwapped ? (
+              // Swapped: Editor second
+              (!isMobile ? editorOpen : !showPreviewMobile) && (
+                <Panel
+                  id="editor"
+                  defaultSize={50}
+                  minSize={20}
+                  className="no-print flex"
+                >
+                  <Editor
+                    content={activeNote.content}
+                    onChange={(content) => updateNote(activeNote.id, { content })}
+                    spellCheck={spellCheckEnabled}
+                    isLocked={activeNote.locked && !security.unlockedSessionNotes.has(activeNote.id)}
+                    hasPasskey={!!security.config.passkeyId}
+                    onUnlock={(password) => security.unlockNote(activeNote.id, password)}
+                    onUnlockPasskey={() => security.unlockNote(activeNote.id)}
+                    onLock={() => handleLockRequest(activeNote.id)}
+                    unlockError={security.unlockError}
+                  />
+                </Panel>
+              )
+            ) : (
+              // Normal: Preview second
+              (!isMobile ? true : showPreviewMobile) && (
+                <Panel
+                  id="preview"
+                  defaultSize={50}
+                  minSize={20}
+                  className="overflow-hidden bg-zinc-950/50 print-area flex"
+                >
+                  <Preview content={activeNote.content} fontSize={fontSize} lineHeight={lineHeight} />
+                </Panel>
+              )
             )}
           </Group>
         ) : (
@@ -387,6 +476,14 @@ export default function App() {
             )}
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setPanelsSwapped(!panelsSwapped)}
+              className={`flex items-center gap-1.5 transition-colors ${panelsSwapped ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Swap Editor & Preview Panels"
+            >
+              <ArrowLeftRight size={12} />
+            </button>
+
             <button
               onClick={() => setFocusMode(!focusMode)}
               className={`flex items-center gap-1.5 transition-colors ${focusMode ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
@@ -473,6 +570,11 @@ export default function App() {
         onAddTemplate={addTemplate}
         onUpdateTemplate={updateTemplate}
         onDeleteTemplate={deleteTemplate}
+        security={security}
+        notes={notes}
+        onUnarchiveNote={(id) => updateNote(id, { archived: false })}
+        onDeleteNote={deleteNote}
+        onSelectNote={setActiveNoteId}
       />
       <ProfileModal
         isOpen={isProfileOpen}
@@ -480,6 +582,37 @@ export default function App() {
         userProfile={userProfile}
         setUserProfile={setUserProfile}
       />
+
+      {showNoPasswordModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+              <Lock size={18} className="text-rose-400" />
+              Master Password Not Set
+            </h3>
+            <p className="text-sm text-zinc-400">
+              You need to set a master password in the Privacy & Security settings before you can lock notes.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowNoPasswordModal(false)}
+                className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowNoPasswordModal(false);
+                  setIsSettingsOpen(true);
+                }}
+                className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Open Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

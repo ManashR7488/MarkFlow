@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Bold, Italic, List, ListOrdered, Link, Heading1, Heading2, Quote, Code, Download, Smile } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Link, Heading1, Heading2, Quote, Code, Download, Smile, Lock, Unlock, AlertCircle, Fingerprint } from 'lucide-react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useAutocomplete, SuggestionType } from '../hooks/useAutocomplete';
@@ -9,11 +9,18 @@ interface EditorProps {
   content: string;
   onChange: (content: string) => void;
   spellCheck?: boolean;
+  isLocked?: boolean;
+  hasPasskey?: boolean;
+  onUnlock?: (password: string) => void;
+  onUnlockPasskey?: () => void;
+  onLock?: () => void;
+  unlockError?: string;
 }
 
-export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
+export function Editor({ content, onChange, spellCheck = false, isLocked = false, hasPasskey = false, onUnlock, onUnlockPasskey, onLock, unlockError }: EditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const { state: autocompleteState, handleInput, onKeyDown, closeSuggestions } = useAutocomplete();
 
@@ -53,6 +60,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = content.substring(start, end);
+    const scrollTop = textarea.scrollTop;
 
     const before = content.substring(0, start);
     const after = content.substring(end);
@@ -63,6 +71,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
     // Set focus and cursor position after React re-renders
     setTimeout(() => {
       textarea.focus();
+      textarea.scrollTop = scrollTop;
       textarea.setSelectionRange(
         start + prefix.length,
         end + prefix.length
@@ -76,6 +85,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
+    const scrollTop = textarea.scrollTop;
     
     // Find the start of the line
     const beforeCursor = content.substring(0, start);
@@ -91,6 +101,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
         onChange(before + after.substring(prefix.length));
         setTimeout(() => {
             textarea.focus();
+            textarea.scrollTop = scrollTop;
             textarea.setSelectionRange(Math.max(0, start - prefix.length), Math.max(0, end - prefix.length));
         }, 0);
     } else {
@@ -98,6 +109,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
         onChange(before + prefix + after);
         setTimeout(() => {
             textarea.focus();
+            textarea.scrollTop = scrollTop;
             textarea.setSelectionRange(start + prefix.length, end + prefix.length);
         }, 0);
     }
@@ -109,6 +121,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
 
     const before = content.substring(0, triggerIdx);
     const after = content.substring(textarea.selectionStart);
+    const scrollTop = textarea.scrollTop;
     
     // Replace the trigger with the insertText
     const newContent = before + insertText + after;
@@ -116,6 +129,7 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
 
     setTimeout(() => {
       textarea.focus();
+      textarea.scrollTop = scrollTop;
       textarea.setSelectionRange(before.length + insertText.length, before.length + insertText.length);
       closeSuggestions();
     }, 0);
@@ -146,12 +160,75 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
           )}
         </div>
         <div className="flex-1"></div>
+        {onLock && (
+          <ToolbarButton 
+            icon={isLocked ? <Unlock size={14} /> : <Lock size={14} />} 
+            onClick={isLocked ? () => {} : onLock} 
+            title={isLocked ? "Unlock Document" : "Lock Document"} 
+          />
+        )}
         <ToolbarButton icon={<Download size={14} />} onClick={handleDownloadMd} title="Download .md" />
       </div>
       <div className="flex-1 relative min-h-0">
-        <textarea
-          ref={textareaRef}
-          id="editor-textarea"
+        {isLocked ? (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 p-6 animate-in fade-in duration-300">
+            <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 max-w-sm w-full text-center space-y-6">
+              <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-2 border border-rose-500/20">
+                <Lock size={32} className="text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-medium text-zinc-100">Document Locked</h3>
+                <p className="text-sm text-zinc-400 mt-2">Enter your master password to decrypt and view this document.</p>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  placeholder="Master Password"
+                  value={unlockPassword}
+                  onChange={(e) => setUnlockPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && onUnlock) {
+                      onUnlock(unlockPassword);
+                      setUnlockPassword('');
+                    }
+                  }}
+                  className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner text-center tracking-widest placeholder:tracking-normal"
+                />
+                {unlockError && (
+                  <div className="text-[13px] text-rose-400 flex items-center justify-center gap-1.5">
+                    <AlertCircle size={14} />
+                    {unlockError}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    if (onUnlock) onUnlock(unlockPassword);
+                    setUnlockPassword('');
+                  }}
+                  disabled={!unlockPassword}
+                  className="w-full bg-rose-500 hover:bg-rose-600 disabled:opacity-50 disabled:hover:bg-rose-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Unlock Document
+                </button>
+                {hasPasskey && (
+                  <button
+                    onClick={() => {
+                      if (onUnlockPasskey) onUnlockPasskey();
+                    }}
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/50 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Fingerprint size={16} className="text-zinc-400" />
+                    Unlock with Fingerprint
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <textarea
+              ref={textareaRef}
+              id="editor-textarea"
           value={content}
           onChange={(e) => {
             onChange(e.target.value);
@@ -168,10 +245,12 @@ export function Editor({ content, onChange, spellCheck = false }: EditorProps) {
           className="w-full h-full bg-zinc-950 text-zinc-300 font-mono text-[15px] p-6 resize-none outline-none leading-relaxed custom-scrollbar block"
           spellCheck={spellCheck}
         />
-        <AutocompletePopup 
-          state={autocompleteState} 
-          onSelect={(item) => handleAutocompleteInsert(item.insertText, autocompleteState.triggerIndex, autocompleteState.type)} 
-        />
+            <AutocompletePopup 
+              state={autocompleteState} 
+              onSelect={(item) => handleAutocompleteInsert(item.insertText, autocompleteState.triggerIndex, autocompleteState.type)} 
+            />
+          </>
+        )}
       </div>
     </div>
   );

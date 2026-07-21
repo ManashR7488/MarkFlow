@@ -1,8 +1,9 @@
-import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save, LogOut, UserCheck, LayoutTemplate, Trash2, Plus, Edit2, ChevronDown, Bot, Undo2 } from 'lucide-react';
+import { X, Type, AlignLeft, SpellCheck, ArrowDownUp, Settings, Sparkles, Cpu, Check, Loader2, AlertCircle, Save, LogOut, UserCheck, LayoutTemplate, Trash2, Plus, Edit2, ChevronDown, Bot, Undo2, Shield, Lock, Unlock, KeyRound, Fingerprint, Archive, Eye } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { useState, useEffect } from 'react';
-import { AIConfig, AIProvider, AIProviderConfig, GoogleAuthState, Template } from '../types';
+import { AIConfig, AIProvider, AIProviderConfig, GoogleAuthState, Template, Note } from '../types';
 import { LLMService } from '../ai/llm';
+import { Preview } from './Preview';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -24,6 +25,11 @@ interface SettingsModalProps {
   onAddTemplate: (name: string, content: string) => void;
   onUpdateTemplate: (id: string, updates: Partial<Template>) => void;
   onDeleteTemplate: (id: string) => void;
+  security: any; // Using any for brevity here, will be typed via useSecurity return type
+  notes: Note[];
+  onUnarchiveNote: (id: string) => void;
+  onDeleteNote: (id: string) => void;
+  onSelectNote: (id: string) => void;
 }
 
 export function SettingsModal({
@@ -46,6 +52,11 @@ export function SettingsModal({
   onAddTemplate,
   onUpdateTemplate,
   onDeleteTemplate,
+  security,
+  notes,
+  onUnarchiveNote,
+  onDeleteNote,
+  onSelectNote,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general');
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -61,6 +72,16 @@ export function SettingsModal({
   const [tempProviders, setTempProviders] = useState<Partial<Record<AIProvider, AIProviderConfig>>>({});
   const [verificationStatus, setVerificationStatus] = useState<Record<string, 'idle' | 'validating' | 'valid' | 'invalid'>>({});
   const [isRefreshingModels, setIsRefreshingModels] = useState<Record<string, boolean>>({});
+
+  // Security tab state
+  const [passwordForm, setPasswordForm] = useState({ password: '', confirm: '', salt: '', current: '' });
+  const [securityError, setSecurityError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSettingUpPasskey, setIsSettingUpPasskey] = useState(false);
+  const [passkeyPassword, setPasskeyPassword] = useState('');
+
+  // Archive tab state
+  const [previewArchiveNoteId, setPreviewArchiveNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -208,6 +229,20 @@ export function SettingsModal({
             >
               <LayoutTemplate size={16} />
               Templates
+            </button>
+            <button 
+              onClick={() => setActiveTab('security')}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'security' ? 'bg-zinc-800/80 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'}`}
+            >
+              <Shield size={16} />
+              Security
+            </button>
+            <button 
+              onClick={() => setActiveTab('archive')}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'archive' ? 'bg-zinc-800/80 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'}`}
+            >
+              <Archive size={16} />
+              Archive
             </button>
           </div>
           
@@ -883,6 +918,407 @@ export function SettingsModal({
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'security' && (
+              <div className="space-y-8 max-w-xl">
+                <div>
+                  <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+                    <Shield size={20} className="text-rose-400" />
+                    Privacy & Security
+                  </h3>
+                  <p className="text-sm text-zinc-400 mt-1">Set a master password to encrypt and lock sensitive notes.</p>
+                </div>
+
+                {!security.isConfigured ? (
+                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                    <h4 className="font-medium text-zinc-200 flex items-center gap-2">
+                      <KeyRound size={16} className="text-rose-400" />
+                      Set Master Password
+                    </h4>
+                    <p className="text-sm text-zinc-400">
+                      Your master password will be used to encrypt notes. Please choose a strong password and do not forget it. 
+                      <strong className="text-rose-400"> There is no password recovery.</strong>
+                    </p>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Master Password</label>
+                        <input
+                          type="password"
+                          value={passwordForm.password}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
+                          className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Confirm Password</label>
+                        <input
+                          type="password"
+                          value={passwordForm.confirm}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                          className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Security Salt (Optional)</label>
+                        <input
+                          type="text"
+                          value={passwordForm.salt}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, salt: e.target.value })}
+                          placeholder="A memorable phrase to strengthen encryption"
+                          className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    {securityError && <div className="text-sm text-rose-400">{securityError}</div>}
+
+                    <button
+                      onClick={async () => {
+                        if (passwordForm.password !== passwordForm.confirm) {
+                          setSecurityError('Passwords do not match');
+                          return;
+                        }
+                        if (passwordForm.password.length < 6) {
+                          setSecurityError('Password must be at least 6 characters');
+                          return;
+                        }
+                        try {
+                          await security.setMasterPassword(passwordForm.password, passwordForm.salt || 'default-salt');
+                          setSecurityError('');
+                          setPasswordForm({ password: '', confirm: '', salt: '', current: '' });
+                        } catch (e: any) {
+                          setSecurityError(e.message);
+                        }
+                      }}
+                      className="w-full bg-rose-500 hover:bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Set Master Password
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 space-y-2">
+                      <div className="flex items-center gap-2 text-emerald-400">
+                        <Check size={18} />
+                        <h4 className="font-medium">Master Password is Set</h4>
+                      </div>
+                      <p className="text-sm text-zinc-400">
+                        Your notes can now be locked and encrypted securely.
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                      <h4 className="font-medium text-zinc-200">Auto-Lock Settings</h4>
+                      
+                      <label className="flex items-center justify-between cursor-pointer group">
+                        <div className="flex items-center gap-3 text-zinc-300">
+                          <Lock size={18} className="text-zinc-500" />
+                          <div>
+                            <div className="text-sm">Auto-Lock on Inactivity</div>
+                            <div className="text-[11px] text-zinc-500 mt-0.5">Automatically lock unlocked notes when you are away</div>
+                          </div>
+                        </div>
+                        <div className="relative shrink-0">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only" 
+                            checked={security.config.autoLockEnabled}
+                            onChange={(e) => security.updateConfig({ autoLockEnabled: e.target.checked })}
+                          />
+                          <div className={`block w-10 h-6 rounded-full transition-colors ${security.config.autoLockEnabled ? 'bg-rose-600' : 'bg-zinc-800 border border-zinc-700'}`}></div>
+                          <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${security.config.autoLockEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                        </div>
+                      </label>
+
+                      {security.config.autoLockEnabled && (
+                        <div className="pl-9 pt-2">
+                          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Timeout Duration</label>
+                          <select
+                            value={security.config.autoLockTimeoutMs}
+                            onChange={(e) => security.updateConfig({ autoLockTimeoutMs: Number(e.target.value) })}
+                            className="bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                          >
+                            <option value={60000}>1 Minute</option>
+                            <option value={300000}>5 Minutes</option>
+                            <option value={900000}>15 Minutes</option>
+                            <option value={1800000}>30 Minutes</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-zinc-200">Manage Password</h4>
+                        <button
+                          onClick={() => setIsChangingPassword(!isChangingPassword)}
+                          className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                        >
+                          {isChangingPassword ? 'Cancel' : 'Change Password'}
+                        </button>
+                      </div>
+
+                      {isChangingPassword && (
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <input
+                              type="password"
+                              placeholder="Current Password"
+                              value={passwordForm.current}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                              className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="password"
+                              placeholder="New Password"
+                              value={passwordForm.password}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
+                              className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="password"
+                              placeholder="Confirm New Password"
+                              value={passwordForm.confirm}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                              className="w-full bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                            />
+                          </div>
+                          {securityError && <div className="text-sm text-rose-400">{securityError}</div>}
+                          <button
+                            onClick={async () => {
+                              if (passwordForm.password !== passwordForm.confirm) {
+                                setSecurityError('Passwords do not match');
+                                return;
+                              }
+                              try {
+                                await security.changeMasterPassword(passwordForm.current, passwordForm.password);
+                                setSecurityError('');
+                                setIsChangingPassword(false);
+                                setPasswordForm({ password: '', confirm: '', salt: '', current: '' });
+                              } catch (e: any) {
+                                setSecurityError(e.message);
+                              }
+                            }}
+                            className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Update Password
+                          </button>
+                        </div>
+                      )}
+
+                      {!isChangingPassword && (
+                        <div className="pt-2 border-t border-zinc-800/60 mt-4">
+                          <p className="text-[11px] text-zinc-500 mb-3">Removing the master password will permanently decrypt all your locked notes.</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="password"
+                              placeholder="Current Password"
+                              value={passwordForm.current}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                              className="flex-1 bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50 transition-all shadow-inner"
+                            />
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await security.removeMasterPassword(passwordForm.current);
+                                  setSecurityError('');
+                                  setPasswordForm({ password: '', confirm: '', salt: '', current: '' });
+                                } catch (e: any) {
+                                  setSecurityError(e.message);
+                                }
+                              }}
+                              disabled={!passwordForm.current}
+                              className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                              Remove Password
+                            </button>
+                          </div>
+                          {securityError && !isChangingPassword && <div className="text-sm text-rose-400 mt-2">{securityError}</div>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-zinc-200 flex items-center gap-2">
+                          <Fingerprint size={18} className="text-rose-400" />
+                          Biometric / Passkey Unlock
+                        </h4>
+                        {security.config.passkeyId ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">Configured</span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await security.removePasskey();
+                                  setSecurityError('');
+                                } catch (e: any) {
+                                  setSecurityError(e.message);
+                                }
+                              }}
+                              className="text-sm text-red-400 hover:text-red-300 transition-colors px-2 py-1"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : isSettingUpPasskey ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="password"
+                              placeholder="Master Password"
+                              value={passkeyPassword}
+                              onChange={(e) => setPasskeyPassword(e.target.value)}
+                              className="bg-zinc-950 border border-zinc-800/80 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-rose-500/50 w-36 shadow-inner"
+                            />
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await security.setupPasskey(passkeyPassword);
+                                  setSecurityError('');
+                                  setIsSettingUpPasskey(false);
+                                  setPasskeyPassword('');
+                                } catch (e: any) {
+                                  setSecurityError(e.message);
+                                }
+                              }}
+                              className="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Verify
+                            </button>
+                            <button onClick={() => { setIsSettingUpPasskey(false); setSecurityError(''); }} className="text-zinc-400 hover:text-zinc-200 p-1">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await security.setupPasskey();
+                                setSecurityError('');
+                              } catch (e: any) {
+                                if (e.message === 'VAULT_LOCKED') {
+                                  setIsSettingUpPasskey(true);
+                                  setSecurityError('');
+                                } else {
+                                  setSecurityError(e.message);
+                                }
+                              }
+                            }}
+                            className="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Set up Passkey
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-sm text-zinc-400">
+                        Use your device's biometric sensor (Fingerprint, Face ID, or Windows Hello) to unlock your notes without typing a password.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {activeTab === 'archive' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-4">Archived Notes</h3>
+                  {previewArchiveNoteId ? (() => {
+                    const note = notes.find(n => n.id === previewArchiveNoteId);
+                    if (!note) return null;
+                    return (
+                      <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col h-[600px]">
+                        <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/80">
+                          <h4 className="font-medium text-zinc-200">{note.title || 'Untitled Note'}</h4>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                onUnarchiveNote(note.id);
+                                onSelectNote(note.id);
+                                onClose();
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Restore Note
+                            </button>
+                            <button
+                              onClick={() => setPreviewArchiveNoteId(null)}
+                              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-hidden relative">
+                           {note.locked ? (
+                              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+                                <Lock size={48} className="mb-4 opacity-20" />
+                                <p>Note is locked. Restore to view contents.</p>
+                              </div>
+                           ) : (
+                              <Preview content={note.content} fontSize={fontSize} lineHeight={lineHeight} />
+                           )}
+                        </div>
+                      </div>
+                    );
+                  })() : (
+                    <div className="space-y-3">
+                      {notes.filter(n => n.archived).length === 0 ? (
+                        <div className="text-center py-12 bg-zinc-900/20 border border-zinc-800/50 rounded-xl">
+                          <Archive size={48} className="mx-auto text-zinc-700 mb-4" />
+                          <p className="text-zinc-500">No archived notes found.</p>
+                        </div>
+                      ) : (
+                        notes.filter(n => n.archived).sort((a, b) => b.updatedAt - a.updatedAt).map(note => (
+                          <div key={note.id} className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between group hover:bg-zinc-900/60 transition-colors">
+                            <div className="flex-1 min-w-0 pr-4">
+                              <h4 className="font-medium text-zinc-200 truncate">{note.title || 'Untitled Note'}</h4>
+                              <p className="text-sm text-zinc-500 truncate mt-1">
+                                {note.locked ? 'Encrypted content' : note.content.substring(0, 100) || 'No content...'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => setPreviewArchiveNoteId(note.id)}
+                                className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors tooltip-trigger"
+                                title="Preview"
+                              >
+                                <Eye size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  onUnarchiveNote(note.id);
+                                }}
+                                className="p-2 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-lg transition-colors tooltip-trigger"
+                                title="Unarchive"
+                              >
+                                <ArrowDownUp size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm('Are you sure you want to permanently delete this note?')) {
+                                    onDeleteNote(note.id);
+                                  }
+                                }}
+                                className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors tooltip-trigger"
+                                title="Delete Forever"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

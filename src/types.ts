@@ -6,6 +6,21 @@ export interface Note {
   updatedAt: number;
   pinned?: boolean;
   archived?: boolean;
+  locked?: boolean;
+  encryptedContent?: string;
+  encryptionIV?: string;
+}
+
+export interface SecurityConfig {
+  masterPasswordHash: string | null;
+  salt: string | null;
+  // Vault Key architecture fields
+  encryptedVaultKeyPassword: string | null; // Vault Key encrypted with Master Password KEK
+  encryptedVaultKeyPasskey: string | null;  // Vault Key encrypted with Passkey PRF output KEK
+  passkeyId: string | null;                 // The credential ID for the WebAuthn passkey
+  passkeySalt: string | null;               // The random salt passed to the PRF extension
+  autoLockEnabled: boolean;
+  autoLockTimeoutMs: number;
 }
 
 export interface Template {
